@@ -1,28 +1,31 @@
-Shader "Custom/DissolveShader"
+Shader "Custom/AdvancedDissolve"
 {
     Properties
     {
-        _BaseMap ("Base Texture", 2D) = "white" {}
-        _NoiseTex ("Noise Texture", 2D) = "white" {}
+        _BaseMap ("Base", 2D) = "white" {}
         
-        _DissolveAmount ("Dissolve Amount", Range(0,1)) = 0
-        _EdgeWidth ("Edge Width", Range(0.001,0.2)) = 0.05
+        _NoiseTex1 ("Noise Large", 2D) = "white" {}
+        _NoiseTex2 ("Noise Detail", 2D) = "white" {}
+
+        _Dissolve ("Dissolve", Range(0,1)) = 0
         
-        _EdgeColor ("Edge Color", Color) = (1,0.5,0,1)
-        _EdgeEmission ("Edge Emission", Range(0,10)) = 2
+        _EdgeWidth ("Edge Width", Range(0.001,0.2)) = 0.08
+        
+        _EdgeColor1 ("Edge Inner", Color) = (1,0.3,0,1)
+        _EdgeColor2 ("Edge Outer", Color) = (1,1,0,1)
+        
+        _Emission ("Emission", Range(0,10)) = 3
+        _ScrollSpeed ("Scroll Speed", Float) = 1
     }
 
     SubShader
     {
         Tags { "RenderType"="Transparent" "Queue"="Transparent" }
-        LOD 100
 
         Pass
         {
-            Name "ForwardPass"
             Blend SrcAlpha OneMinusSrcAlpha
             ZWrite Off
-            Cull Back
 
             HLSLPROGRAM
             #pragma vertex vert
@@ -43,22 +46,22 @@ Shader "Custom/DissolveShader"
             };
 
             sampler2D _BaseMap;
-            sampler2D _NoiseTex;
+            sampler2D _NoiseTex1;
+            sampler2D _NoiseTex2;
 
-            float4 _BaseMap_ST;
-            float4 _NoiseTex_ST;
-
-            float _DissolveAmount;
+            float _Dissolve;
             float _EdgeWidth;
+            float _Emission;
+            float _ScrollSpeed;
 
-            float4 _EdgeColor;
-            float _EdgeEmission;
+            float4 _EdgeColor1;
+            float4 _EdgeColor2;
 
             Varyings vert (Attributes v)
             {
                 Varyings o;
                 o.positionHCS = TransformObjectToHClip(v.positionOS.xyz);
-                o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
+                o.uv = v.uv;
                 return o;
             }
 
@@ -66,24 +69,28 @@ Shader "Custom/DissolveShader"
             {
                 float2 uv = i.uv;
 
-                // ベースカラー
                 half4 baseCol = tex2D(_BaseMap, uv);
 
-                // ノイズ取得
-                float noise = tex2D(_NoiseTex, uv).r;
+                // スクロール付きノイズ
+                float2 scrollUV = uv + float2(_Time.y * _ScrollSpeed, 0);
 
-                // ディゾルブ判定
-                float dissolve = noise - _DissolveAmount;
+                float n1 = tex2D(_NoiseTex1, uv).r;
+                float n2 = tex2D(_NoiseTex2, scrollUV * 2).r;
 
-                // エッジ判定
-                float edge = smoothstep(0, _EdgeWidth, dissolve);
+                float noise = lerp(n1, n2, 0.5);
 
-                // 完全に消える部分
-                clip(dissolve);
+                float d = noise - _Dissolve;
 
-                // エッジ発光
-                float edgeMask = 1.0 - edge;
-                float3 emission = _EdgeColor.rgb * edgeMask * _EdgeEmission;
+                // エッジ帯
+                float edge = smoothstep(0, _EdgeWidth, d);
+                float edgeBand = 1.0 - edge;
+
+                clip(d);
+
+                // グラデーションエッジ
+                float3 edgeColor = lerp(_EdgeColor1.rgb, _EdgeColor2.rgb, edgeBand);
+
+                float3 emission = edgeColor * edgeBand * _Emission;
 
                 return half4(baseCol.rgb + emission, baseCol.a);
             }
