@@ -6,6 +6,10 @@ public class TMPStringClip : PlayableAsset
 {
     public ExposedReference<TextMeshProUGUI> targetText;
     public string displayText;
+    [Header("Typewriter")]
+    public float charInterval = 0.05f;     // 1•¶Žš‚ ‚½‚è
+    public float punctuationWait = 0.2f;   // ‹å“Ç“_‘Ò‹@
+    public ExposedReference<TMPStringDisplayController> controller;
 
     public override Playable CreatePlayable(PlayableGraph graph, GameObject owner)
     {
@@ -17,6 +21,11 @@ public class TMPStringClip : PlayableAsset
             targetText.Resolve(graph.GetResolver());
 
         behaviour.displayText = displayText;
+        behaviour.charInterval = charInterval;
+        behaviour.punctuationWait = punctuationWait;
+
+        behaviour.controller =
+        controller.Resolve(graph.GetResolver());
 
         return playable;
     }
